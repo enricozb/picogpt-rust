@@ -1,8 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+  collections::{HashMap, HashSet},
+  path::PathBuf,
+};
 
+use anyhow::{Context, Result};
 use fancy_regex::Regex;
 
-pub type Token = u64;
+use crate::ext::HashMapExt;
+
+pub type Token = String;
+pub type TokenId = u64;
 
 pub struct Encoder {
   /// Matches "words" on whitespace, contracition, or numeric boundaries.
@@ -11,31 +18,90 @@ pub struct Encoder {
   byte_to_char: HashMap<u8, char>,
   /// Maps "latent" characters back to their original bytes.
   char_to_byte: HashMap<char, u8>,
-
+  /// Maps bpe split strings to token ids.
+  encoder: HashMap<Token, TokenId>,
+  /// Inverse of `encoder`.
+  decoder: HashMap<TokenId, Token>,
+  /// Priority of BPE merges.
   bpe_ranks: HashMap<(String, String), usize>,
-
-  /// BPE split cache.
-  cache: HashMap<String, Vec<String>>,
+  /// BPE split tokenize_cache.
+  tokenize_cache: HashMap<String, Vec<TokenId>>,
 }
 
 impl Encoder {
-  pub fn new() -> Self {
+  pub fn new(model_dir: PathBuf) -> Result<Self> {
     let byte_to_char = Self::byte_to_char();
+    let encoder: HashMap<Token, TokenId> = crate::utils::serde_json_from_path(model_dir.join("encoder.json"))?;
 
-    Self {
+    Ok(Self {
       word_re: Regex::new(r"'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+").unwrap(),
-      char_to_byte: byte_to_char.iter().map(|(b, c)| (*c, *b)).collect(),
-      bpe_ranks: HashMap::new(),
+      char_to_byte: byte_to_char.invert(),
       byte_to_char,
-      cache: HashMap::new(),
+      decoder: encoder.invert(),
+      encoder,
+      bpe_ranks: crate::utils::bpe_ranks_from_path(model_dir.join("vocab.bpe"))?,
+      tokenize_cache: HashMap::new(),
+    })
+  }
+
+  pub fn encode(&mut self, text: &str) -> Result<Vec<TokenId>> {
+    let mut token_ids = Vec::new();
+
+    for word in self.word_re.find_iter(text) {
+      let word: String = word
+        .context("match")?
+        .as_str()
+        .as_bytes()
+        .iter()
+        .map(|b| self.byte_to_char.get(b).unwrap())
+        .collect();
+
+      if let Some(cached_token_ids) = self.tokenize_cache.get(&word) {
+        token_ids.extend(cached_token_ids.iter());
+      } else {
+        let tokens = self.tokenize(word.clone());
+        let new_token_ids: Vec<TokenId> = tokens
+          .into_iter()
+          .map(|token| {
+            *self
+              .encoder
+              .get(&token)
+              .with_context(|| format!("unexpected token {token}"))
+              .unwrap()
+          })
+          .collect();
+
+        token_ids.extend(new_token_ids.iter());
+
+        self.tokenize_cache.insert(word, new_token_ids);
+      }
     }
+
+    Ok(token_ids)
+  }
+
+  pub fn decode(&self, token_ids: &[TokenId]) -> String {
+    let tokens: String = token_ids
+      .iter()
+      .map(|token_id| {
+        self
+          .decoder
+          .get(token_id)
+          .with_context(|| format!("unexpected token id: {token_id}"))
+          .unwrap()
+          .as_str()
+      })
+      .collect::<Vec<_>>()
+      .join("");
+
+    String::from_utf8(tokens.chars().map(|c| *self.char_to_byte.get(&c).unwrap()).collect()).unwrap()
   }
 
   /// Tokenizes a string into into it's BPE strings. Splits on all characters
   /// then performs all BPE merges.
   ///
   /// For example, "elephant" -> ["ele", "phant"]
-  fn tokenize(&mut self, word: String) -> Vec<String> {
+  fn tokenize(&self, word: String) -> Vec<Token> {
     let mut parts: Vec<String> = word.chars().map(|c| c.to_string()).collect();
 
     loop {
@@ -82,23 +148,7 @@ impl Encoder {
     parts
   }
 
-  pub fn encode(&self, text: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
-    for word in self.word_re.find_iter(text) {
-      let word: String = word
-        .unwrap()
-        .as_str()
-        .as_bytes()
-        .iter()
-        .map(|b| self.byte_to_char.get(b).unwrap())
-        .collect();
-
-      // tokens.extend(self.bpe(word).into_iter().map(|bpe_token| self.bpe_encoder.get(bpe_token).unwrap()))
-    }
-
-    tokens
-  }
-
+  /// The set of all adjacent pairs of parts.
   fn parts_to_pairs(parts: &[String]) -> HashSet<(String, String)> {
     std::iter::zip(parts.iter().cloned(), parts.iter().skip(1).cloned()).collect()
   }
@@ -125,18 +175,5 @@ impl Encoder {
     map.extend(printable.into_iter().map(|byte| (byte, byte as char)));
 
     map
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  #[test]
-  fn exploration() {
-    assert_eq!(2 + 2, 4);
-  }
-
-  #[test]
-  fn another() {
-    panic!("Make this test fail");
   }
 }

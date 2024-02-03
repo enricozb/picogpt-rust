@@ -1,18 +1,24 @@
 mod encoder;
+mod ext;
+mod utils;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;
+
+use self::encoder::Encoder;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
   #[arg(long)]
-  prompt: String,
+  model_dir: PathBuf,
 
   #[arg(long)]
-  num_tokens: usize,
+  prompt: String,
+  // #[arg(long)]
+  // num_tokens: usize,
 }
 
 struct Distribution<T> {
@@ -33,7 +39,14 @@ struct Distribution<T> {
 fn main() -> Result<()> {
   let args = Args::parse();
 
-  // let input_tokens = encoder::encode(args.prompt).context("encode")?;
+  let mut encoder = Encoder::new(args.model_dir).context("encoder")?;
+
+  let token_ids = encoder.encode(&args.prompt).context("encode")?;
+  println!("encoded: {token_ids:?}");
+
+  let decoded = encoder.decode(&token_ids);
+  println!("decoded: {decoded:?}");
+
   // let output_tokens = generate(input_tokens, args.num_tokens).context("generate")?;
 
   // let output = decoder::decode(output_tokens).context("decode")?;
