@@ -1,6 +1,6 @@
 use std::{
   collections::{HashMap, HashSet},
-  path::PathBuf,
+  path::Path,
 };
 
 use anyhow::{Context, Result};
@@ -29,7 +29,9 @@ pub struct Encoder {
 }
 
 impl Encoder {
-  pub fn new(model_dir: PathBuf) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(model_dir: P) -> Result<Self> {
+    let model_dir = model_dir.as_ref();
+
     let byte_to_char = Self::byte_to_char();
     let encoder: HashMap<Token, TokenId> = crate::utils::serde_json_from_path(model_dir.join("encoder.json"))?;
 

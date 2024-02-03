@@ -27,7 +27,7 @@ pub fn bpe_ranks_from_path<P: AsRef<Path>>(path: P) -> Result<HashMap<(String, S
       continue;
     }
 
-    let parts: Vec<&str> = line.split(" ").collect();
+    let parts: Vec<&str> = line.split(' ').collect();
     anyhow::ensure!(parts.len() == 2);
 
     bpe_ranks.insert((parts[0].to_string(), parts[1].to_string()), priority);

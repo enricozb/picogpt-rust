@@ -42,10 +42,8 @@ fn main() -> Result<()> {
   let mut encoder = Encoder::new(args.model_dir).context("encoder")?;
 
   let token_ids = encoder.encode(&args.prompt).context("encode")?;
-  println!("encoded: {token_ids:?}");
 
   let decoded = encoder.decode(&token_ids);
-  println!("decoded: {decoded:?}");
 
   // let output_tokens = generate(input_tokens, args.num_tokens).context("generate")?;
 
