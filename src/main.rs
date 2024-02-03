@@ -15,22 +15,20 @@ struct Args {
   num_tokens: usize,
 }
 
-type TokenId = u64;
-
 struct Distribution<T> {
   pmf: HashMap<T, f64>,
 }
 
 // fn gpt(tokens: &[TokenId]) -> Result<Vec<Distribution<TokenId>>> {}
 
-fn generate(mut tokens: Vec<TokenId>, num_tokens: usize) -> Result<Vec<TokenId>> {
-  for i in 0..num_tokens {
-    // let dist = gpt(&tokens).context("gpt")?.last().context("no distributions")?;
-    // tokens.push(dist.sample().context("sample")?);
-  }
+// fn generate(mut tokens: Vec<TokenId>, num_tokens: usize) -> Result<Vec<TokenId>> {
+//   for i in 0..num_tokens {
+//     let dist = gpt(&tokens).context("gpt")?.last().context("no distributions")?;
+//     tokens.push(dist.sample().context("sample")?);
+//   }
 
-  Ok(tokens[tokens.len() - num_tokens..].to_vec())
-}
+//   Ok(tokens[tokens.len() - num_tokens..].to_vec())
+// }
 
 fn main() -> Result<()> {
   let args = Args::parse();
@@ -39,8 +37,6 @@ fn main() -> Result<()> {
   // let output_tokens = generate(input_tokens, args.num_tokens).context("generate")?;
 
   // let output = decoder::decode(output_tokens).context("decode")?;
-
-  println!("{:?}", encoder::bytes_to_unicode());
 
   Ok(())
 }
