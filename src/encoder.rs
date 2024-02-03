@@ -1,9 +1,6 @@
-use std::{
-  borrow::Cow,
-  collections::{hash_map::Entry, HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
-use regex::Regex;
+use fancy_regex::Regex;
 
 pub type Token = u64;
 
@@ -26,7 +23,7 @@ impl Encoder {
     let byte_to_char = Self::byte_to_char();
 
     Self {
-      word_re: Regex::new(r#"'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"#).unwrap(),
+      word_re: Regex::new(r"'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+").unwrap(),
       char_to_byte: byte_to_char.iter().map(|(b, c)| (*c, *b)).collect(),
       bpe_ranks: HashMap::new(),
       byte_to_char,
@@ -49,7 +46,7 @@ impl Encoder {
         .iter()
         .min_by_key(|pair| self.bpe_ranks.get(pair).copied().unwrap_or(usize::MAX))
       else {
-        return vec![word].into();
+        return vec![word];
       };
 
       if !self.bpe_ranks.contains_key(bigram) {
@@ -89,6 +86,7 @@ impl Encoder {
     let mut tokens = Vec::new();
     for word in self.word_re.find_iter(text) {
       let word: String = word
+        .unwrap()
         .as_str()
         .as_bytes()
         .iter()
@@ -107,7 +105,7 @@ impl Encoder {
 
   /// Mapping of arbitrary bytes to printable chars.
   ///
-  /// See: https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/bpe.py#L22-L33
+  /// See: <https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/bpe.py#L22-L33>
   fn byte_to_char() -> HashMap<u8, char> {
     let mut printable: HashSet<u8> = (b'!'..=b'~').collect();
     printable.extend('¡' as u8..='¬' as u8);
@@ -127,5 +125,18 @@ impl Encoder {
     map.extend(printable.into_iter().map(|byte| (byte, byte as char)));
 
     map
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  #[test]
+  fn exploration() {
+    assert_eq!(2 + 2, 4);
+  }
+
+  #[test]
+  fn another() {
+    panic!("Make this test fail");
   }
 }
