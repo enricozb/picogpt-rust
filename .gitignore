@@ -1,3 +1,5 @@
 # nix-direnv
 .direnv
 .envrc
+
+target/
