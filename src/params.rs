@@ -1,4 +1,6 @@
-use ndarray::{Array2, Axis};
+use std::f32::consts::FRAC_2_PI;
+
+use ndarray::Array2;
 
 use crate::ext::ArrayExt;
 
@@ -34,20 +36,47 @@ impl LayerNorm {
 /// - a multi-head causal self-attention
 /// - a position-wise feed forward neural network
 pub struct Block {
-  /// Layer normalization for attention.
-  layer_norm_1: LayerNorm,
   attention: Attention,
+  network: Network,
+}
 
-  /// Layer normalization for the nerural network.
-  layer_norm_2: LayerNorm,
-  nn_weights: Weights,
+impl Block {
+  pub fn apply(&self, x: &Array2<f32>) -> Array2<f32> {
+    let x = x + self.attention.apply(x);
+    let x = &x + self.network.apply(&x);
+
+    x
+  }
 }
 
 pub struct Attention {
+  layer_norm: LayerNorm,
   /// Multiplied with input before self-attention.
   pre_self_attention: Weights,
   /// Projects back down after self-attention.
   projection: Weights,
+}
+
+impl Attention {
+  pub fn apply(&self, x: &Array2<f32>) -> Array2<f32> {
+    x.clone()
+    // let x = self.layer_norm.apply(&x);
+  }
+}
+
+pub struct Network {
+  layer_norm: LayerNorm,
+  expand: Weights,
+  collapse: Weights,
+}
+
+impl Network {
+  pub fn apply(&self, x: &Array2<f32>) -> Array2<f32> {
+    let x = self.layer_norm.apply(x);
+    let a = self.expand.linear(&x).mapv(gelu);
+
+    self.collapse.linear(&a)
+  }
 }
 
 /// Generic weights for linear multiplication with bias.
@@ -60,4 +89,14 @@ impl Weights {
   pub fn linear(&self, x: &Array2<f32>) -> Array2<f32> {
     x.dot(&self.weights) + &self.bias
   }
+}
+
+fn gelu(x: f32) -> f32 {
+  0.5 * x * (1.0 + f32::tanh(f32::sqrt(FRAC_2_PI) * (x + 0.044715 * x.powi(3))))
+}
+
+fn softmax(x: &Array2<f32>) -> Array2<f32> {
+  let exp_x = (x - x.max_keep_dims()).mapv(f32::exp);
+
+  &exp_x / exp_x.sum_keep_dims()
 }
