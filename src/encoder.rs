@@ -29,7 +29,7 @@ pub struct Encoder {
 }
 
 impl Encoder {
-  pub fn new<P: AsRef<Path>>(model_dir: P) -> Result<Self> {
+  pub fn from_dir<P: AsRef<Path>>(model_dir: P) -> Result<Self> {
     let model_dir = model_dir.as_ref();
 
     let byte_to_char = Self::byte_to_char();

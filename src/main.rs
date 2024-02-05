@@ -1,13 +1,18 @@
 mod encoder;
 mod ext;
+mod hyper_params;
+mod params;
 mod utils;
 
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use hyper_params::HyperParams;
+use ndarray::{Array2, Axis};
 
 use self::encoder::Encoder;
+use crate::params::LayerNorm;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -39,11 +44,19 @@ struct Distribution<T> {
 fn main() -> Result<()> {
   let args = Args::parse();
 
-  let mut encoder = Encoder::new(args.model_dir).context("encoder")?;
+  let hyper_params = HyperParams::from_dir(&args.model_dir).context("hyper params")?;
+  // let params = Params::from_dir(&args.params_dir).context("params")?;
+  let mut encoder = Encoder::from_dir(&args.model_dir).context("encoder")?;
 
   let token_ids = encoder.encode(&args.prompt).context("encode")?;
-
   let decoded = encoder.decode(&token_ids);
+
+  let a = ndarray::array![[1., 2.], [3., 4.]];
+  let b = ndarray::array![[5., 6.], [7., 8.]];
+  let c = ndarray::array![[9., 10.], [11., 12.]];
+
+  let norm = LayerNorm { gamma: b, beta: c };
+  println!("layer_norm(a, b, c) = {}", norm.apply(&a));
 
   // let output_tokens = generate(input_tokens, args.num_tokens).context("generate")?;
 
