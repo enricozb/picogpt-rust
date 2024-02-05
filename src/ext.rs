@@ -1,7 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use anyhow::{Context, Result};
-use ndarray::{Array, Array1, Array2, ArrayView1, Axis, RemoveAxis};
+use ndarray::{Array, Array1, Array2, ArrayView1, ArrayView2, Axis, RemoveAxis};
 
 #[extend::ext(name = HashMapExt)]
 pub impl<K, V> HashMap<K, V> {
@@ -14,8 +14,41 @@ pub impl<K, V> HashMap<K, V> {
   }
 }
 
-#[extend::ext(name = ArrayExt)]
-pub impl Array2<f32> {
+#[extend::ext(name = VecExt)]
+pub impl<T: PartialOrd> Vec<T> {
+  fn argmax(&self) -> Option<usize> {
+    self
+      .iter()
+      .enumerate()
+      .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+      .map(|(i, _)| i)
+  }
+}
+
+#[extend::ext(name = ArrayView2Ext)]
+pub impl<'a> ArrayView2<'a, f32> {
+  /// Splits `self` into a vector of subarrays along the last axis.
+  fn split_n(&self, num: usize) -> Result<Vec<ArrayView2<f32>>> {
+    let last_axis_length = self.shape()[1];
+
+    if last_axis_length % num != 0 {
+      anyhow::bail!("axis 1 of size {last_axis_length} is not divisible by {num}")
+    }
+
+    let subarray_size = last_axis_length / num;
+
+    let mut splits = Vec::new();
+    let mut view = self.view();
+
+    for _ in 0..num {
+      let (h, rest) = view.split_at(Axis(1), subarray_size);
+      splits.push(h);
+      view = rest;
+    }
+
+    Ok(splits)
+  }
+
   fn slice_vec(&self, indices: &[usize]) -> Result<Array2<f32>> {
     let view: Vec<ArrayView1<_>> = indices.iter().map(|idx| self.index_axis(Axis(0), *idx)).collect();
 
