@@ -4,7 +4,7 @@ mod hyper_params;
 mod params;
 mod utils;
 
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, f32::consts::FRAC_2_PI, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -12,7 +12,7 @@ use hyper_params::HyperParams;
 use ndarray::{Array2, Axis};
 
 use self::encoder::Encoder;
-use crate::params::LayerNorm;
+use crate::{ext::ArrayExt, params::LayerNorm};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -28,6 +28,16 @@ struct Args {
 
 struct Distribution<T> {
   pmf: HashMap<T, f64>,
+}
+
+fn gelu(x: f32) -> f32 {
+  0.5 * x * (1.0 + f32::tanh(f32::sqrt(FRAC_2_PI) * (x + 0.044715 * x.powi(3))))
+}
+
+fn softmax(x: &Array2<f32>) -> Array2<f32> {
+  let exp_x = (x - x.max_keep_dims()).mapv(f32::exp);
+
+  &exp_x / exp_x.sum_keep_dims()
 }
 
 // fn gpt(tokens: &[TokenId]) -> Result<Vec<Distribution<TokenId>>> {}
@@ -55,8 +65,8 @@ fn main() -> Result<()> {
   let b = ndarray::array![[5., 6.], [7., 8.]];
   let c = ndarray::array![[9., 10.], [11., 12.]];
 
-  let norm = LayerNorm { gamma: b, beta: c };
-  println!("layer_norm(a, b, c) = {}", norm.apply(&a));
+  println!("softmax(a) = {}", softmax(&a));
+  println!("gelu(a) = {}", a.mapv(gelu));
 
   // let output_tokens = generate(input_tokens, args.num_tokens).context("generate")?;
 
