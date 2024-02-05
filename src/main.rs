@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use hyper_params::HyperParams;
 
-use self::encoder::Encoder;
+use self::{encoder::Encoder, ext::ArrayExt};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -49,10 +49,11 @@ fn main() -> Result<()> {
   let token_ids = encoder.encode(&args.prompt).context("encode")?;
   let decoded = encoder.decode(&token_ids);
 
-  let a = ndarray::array![[1., 2.], [3., 4.]];
+  let a = ndarray::array![[1., 2.], [3., 4.], [5., 6.]];
   let b = ndarray::array![[5., 6.], [7., 8.]];
   let c = ndarray::array![[9., 10.], [11., 12.]];
 
+  println!("a[..] = {:?}", a.slice_vec(&[2]));
 
   // let output_tokens = generate(input_tokens, args.num_tokens).context("generate")?;
 

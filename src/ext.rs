@@ -1,6 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
 
-use ndarray::{Array, Array1, Array2, Axis, RemoveAxis};
+use anyhow::{Context, Result};
+use ndarray::{Array, Array1, Array2, ArrayView1, Axis, RemoveAxis};
 
 #[extend::ext(name = HashMapExt)]
 pub impl<K, V> HashMap<K, V> {
@@ -15,6 +16,12 @@ pub impl<K, V> HashMap<K, V> {
 
 #[extend::ext(name = ArrayExt)]
 pub impl Array2<f32> {
+  fn slice_vec(&self, indices: &[usize]) -> Result<Array2<f32>> {
+    let view: Vec<ArrayView1<_>> = indices.iter().map(|idx| self.index_axis(Axis(0), *idx)).collect();
+
+    ndarray::stack(Axis(0), &view).context("stack")
+  }
+
   /// Equivalent to `np.max(x, -1, keep_dims=True)`
   fn max_keep_dims(&self) -> Array2<f32> {
     let mut res: Array1<f32> = Array::zeros(self.raw_dim().remove_axis(Axis(1)));

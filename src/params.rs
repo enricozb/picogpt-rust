@@ -1,15 +1,34 @@
 use std::f32::consts::FRAC_2_PI;
 
-use ndarray::Array2;
+use ndarray::{Array2, Axis};
 
-use crate::ext::ArrayExt;
+use crate::{encoder::TokenId, ext::ArrayExt};
 
 /// GPT-2 model parameters.
 pub struct Params {
-  position_encoding: Array2<f32>,
-  token_encoding: Array2<f32>,
-  layer_norm: LayerNorm,
+  position_embedding: Array2<f32>,
+  token_embedding: Array2<f32>,
   blocks: Vec<Block>,
+  layer_norm: LayerNorm,
+}
+
+impl Params {
+  pub fn gpt2(&self, inputs: &[TokenId]) -> Array2<f32> {
+    let inputs: Vec<usize> = inputs.iter().map(|token_id| *token_id as usize).collect();
+
+    let token_embeddings = self.token_embedding.slice_vec(&inputs).unwrap();
+    let position_embeddings = self.position_embedding.slice_axis(Axis(0), (0..inputs.len()).into());
+
+    let mut x = token_embeddings + position_embeddings;
+
+    for block in &self.blocks {
+      x = block.apply(&x);
+    }
+
+    x = self.layer_norm.apply(&x);
+
+    x.dot(&self.token_embedding.t())
+  }
 }
 
 /// Learned parameters for layer normalization.
