@@ -14,7 +14,7 @@ pub struct HyperParams {
   /// Number of attention heads.
   /// Must be a divisor of `network_width`.
   #[serde(rename = "n_head")]
-  pub num_head: usize,
+  pub num_heads: usize,
   /// Width of the network, or the embeding dimension.
   #[serde(rename = "n_embd")]
   pub network_width: usize,

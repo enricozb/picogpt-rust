@@ -23,7 +23,7 @@ impl Params {
     Ok(Self {
       token_embedding: ndarray_npy::read_npy(model_dir.join("wte.npy")).context("wte")?,
       position_embedding: ndarray_npy::read_npy(model_dir.join("wpe.npy")).context("wpe")?,
-      blocks: Block::from_dirs(&model_dir, num_heads, depth).context("block")?,
+      blocks: Block::from_dirs(model_dir, num_heads, depth).context("block")?,
       layer_norm: LayerNorm::from_dir(model_dir.join("ln_f")).context("layer norm")?,
     })
   }
@@ -41,13 +41,14 @@ impl Params {
         .argmax()
         .unwrap();
 
-      inputs.push(next_token_id as u64)
+      inputs.push(next_token_id as u64);
     }
 
     inputs[inputs.len() - num_tokens..].to_vec()
   }
 
   fn gpt2(&self, inputs: &[TokenId]) -> Array2<f32> {
+    #[allow(clippy::cast_possible_truncation)]
     let inputs: Vec<usize> = inputs.iter().map(|token_id| *token_id as usize).collect();
 
     let token_embeddings = self.token_embedding.view().slice_vec(&inputs).unwrap();
@@ -117,24 +118,23 @@ impl Block {
     Ok(Self {
       attention: Attention {
         layer_norm: LayerNorm::from_dir(block_dir.join("ln_1")).context("ln_1")?,
-        pre_self_attention: Weights::from_dir(block_dir.join("attn/c_attn")).context("attn/c_attn")?,
+        expand: Weights::from_dir(block_dir.join("attn/c_attn")).context("attn/c_attn")?,
+        contract: Weights::from_dir(block_dir.join("attn/c_proj")).context("attn/c_proj")?,
         num_heads,
-        post_self_attention: Weights::from_dir(block_dir.join("attn/c_proj")).context("attn/c_proj")?,
       },
 
       network: Network {
         layer_norm: LayerNorm::from_dir(block_dir.join("ln_2")).context("ln_2")?,
         expand: Weights::from_dir(block_dir.join("mlp/c_fc")).context("mlp/c_fc")?,
-        collapse: Weights::from_dir(block_dir.join("mlp/c_proj")).context("mlp/c_proj")?,
+        contract: Weights::from_dir(block_dir.join("mlp/c_proj")).context("mlp/c_proj")?,
       },
     })
   }
 
   pub fn apply(&self, x: &Array2<f32>) -> Array2<f32> {
     let x = x + self.attention.apply(x);
-    let x = &x + self.network.apply(&x);
 
-    x
+    &x + self.network.apply(&x)
   }
 }
 
@@ -142,18 +142,18 @@ pub struct Attention {
   /// Normalize input.
   layer_norm: LayerNorm,
   /// Multiplied with input before self-attention.
-  pre_self_attention: Weights,
+  expand: Weights,
+  /// Projects back down after self-attention.
+  contract: Weights,
   /// Number of heads.
   num_heads: usize,
-  /// Projects back down after self-attention.
-  post_self_attention: Weights,
 }
 
 impl Attention {
   pub fn apply(&self, x: &Array2<f32>) -> Array2<f32> {
     let x = self.layer_norm.apply(x);
 
-    let x = self.pre_self_attention.linear(&x);
+    let x = self.expand.linear(&x);
     let x = x.view();
     let qkv = x.split_n(3).unwrap();
     let qkv_heads: Vec<_> = qkv.iter().map(|x| x.split_n(self.num_heads).unwrap()).collect();
@@ -167,14 +167,14 @@ impl Attention {
     let out_heads: Vec<_> = out_heads.iter().map(Array2::view).collect();
     let out_heads = ndarray::concatenate(Axis(1), &out_heads[..]).unwrap();
 
-    self.post_self_attention.linear(&out_heads)
+    self.contract.linear(&out_heads)
   }
 }
 
 pub struct Network {
   layer_norm: LayerNorm,
   expand: Weights,
-  collapse: Weights,
+  contract: Weights,
 }
 
 impl Network {
@@ -182,7 +182,7 @@ impl Network {
     let x = self.layer_norm.apply(x);
     let a = self.expand.linear(&x).mapv(gelu);
 
-    self.collapse.linear(&a)
+    self.contract.linear(&a)
   }
 }
 
@@ -210,7 +210,7 @@ impl Weights {
 }
 
 fn gelu(x: f32) -> f32 {
-  0.5 * x * (1.0 + f32::tanh(f32::sqrt(FRAC_2_PI) * (x + 0.044715 * x.powi(3))))
+  0.5 * x * (1.0 + f32::tanh(f32::sqrt(FRAC_2_PI) * (x + 0.044_715 * x.powi(3))))
 }
 
 fn softmax(x: &Array2<f32>) -> Array2<f32> {
@@ -220,6 +220,7 @@ fn softmax(x: &Array2<f32>) -> Array2<f32> {
 }
 
 fn attention(q: &ArrayView2<f32>, k: &ArrayView2<f32>, v: &ArrayView2<f32>, causal_mask: &Array2<f32>) -> Array2<f32> {
+  #[allow(clippy::cast_precision_loss)]
   softmax(&(q.dot(&k.t()) / (q.shape()[1] as f32).sqrt() + causal_mask)).dot(v)
 }
 

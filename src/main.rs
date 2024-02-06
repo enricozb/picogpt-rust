@@ -31,18 +31,17 @@ fn main() -> Result<()> {
   let hyper_params = HyperParams::from_dir(&args.model_dir).context("hyper params")?;
   let params = Params::from_dir(
     args.model_dir.join("exploded_model"),
-    /* num_heads */ 12,
-    /* depth */ 12,
+    hyper_params.num_heads,
+    hyper_params.network_depth,
   )
   .context("params")?;
+
   let mut encoder = Encoder::from_dir(&args.model_dir).context("encoder")?;
 
   let token_ids = encoder.encode(&args.prompt).context("encode")?;
-
   anyhow::ensure!(token_ids.len() < hyper_params.max_context, "input too large");
 
   let output_ids = params.generate(token_ids, args.num_tokens);
-
   let decoded = encoder.decode(&output_ids);
 
   println!("output = {decoded:?}");

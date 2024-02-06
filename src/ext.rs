@@ -61,7 +61,7 @@ pub impl<'a> ArrayView2<'a, f32> {
 
     for subview in self.axis_iter(Axis(1)) {
       for i in 0..res.shape()[0] {
-        res[i] = f32::max(res[i], subview[i])
+        res[i] = f32::max(res[i], subview[i]);
       }
     }
 

@@ -19,9 +19,9 @@ pub struct Encoder {
   /// Maps "latent" characters back to their original bytes.
   char_to_byte: HashMap<char, u8>,
   /// Maps bpe split strings to token ids.
-  encoder: HashMap<Token, TokenId>,
-  /// Inverse of `encoder`.
-  decoder: HashMap<TokenId, Token>,
+  token_to_id: HashMap<Token, TokenId>,
+  /// Inverse of `token_to_id`.
+  id_to_token: HashMap<TokenId, Token>,
   /// Priority of BPE merges.
   bpe_ranks: HashMap<(String, String), usize>,
   /// BPE split tokenize_cache.
@@ -33,14 +33,14 @@ impl Encoder {
     let model_dir = model_dir.as_ref();
 
     let byte_to_char = Self::byte_to_char();
-    let encoder: HashMap<Token, TokenId> = crate::utils::serde_json_from_path(model_dir.join("encoder.json"))?;
+    let token_to_id: HashMap<Token, TokenId> = crate::utils::serde_json_from_path(model_dir.join("encoder.json"))?;
 
     Ok(Self {
       word_re: Regex::new(r"'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+").unwrap(),
       char_to_byte: byte_to_char.invert(),
       byte_to_char,
-      decoder: encoder.invert(),
-      encoder,
+      id_to_token: token_to_id.invert(),
+      token_to_id,
       bpe_ranks: crate::utils::bpe_ranks_from_path(model_dir.join("vocab.bpe"))?,
       tokenize_cache: HashMap::new(),
     })
@@ -66,7 +66,7 @@ impl Encoder {
           .into_iter()
           .map(|token| {
             *self
-              .encoder
+              .token_to_id
               .get(&token)
               .with_context(|| format!("unexpected token {token}"))
               .unwrap()
@@ -87,7 +87,7 @@ impl Encoder {
       .iter()
       .map(|token_id| {
         self
-          .decoder
+          .id_to_token
           .get(token_id)
           .with_context(|| format!("unexpected token id: {token_id}"))
           .unwrap()
@@ -158,6 +158,7 @@ impl Encoder {
   /// Mapping of arbitrary bytes to printable chars.
   ///
   /// See: <https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/bpe.py#L22-L33>
+  #[allow(clippy::char_lit_as_u8)]
   fn byte_to_char() -> HashMap<u8, char> {
     let mut printable: HashSet<u8> = (b'!'..=b'~').collect();
     printable.extend('¡' as u8..='¬' as u8);

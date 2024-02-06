@@ -4,5 +4,5 @@
 
 target/
 
-# picogpt python code
-picoGPT/
+# models
+model/
